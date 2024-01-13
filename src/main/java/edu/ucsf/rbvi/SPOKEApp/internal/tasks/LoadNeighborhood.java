@@ -2,7 +2,6 @@ package edu.ucsf.rbvi.spokeApp.internal.tasks;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -56,13 +55,15 @@ public class LoadNeighborhood extends AbstractTask {
 		// make sure the list of resolved IDs is unique
 		SpokeManager manager = spokeNet.getManager();
 
-		System.out.println("Sending query to: "+manager.getNetworkURL(nodeType, attribute, query));
+		String url = manager.getNetworkURL(nodeType, attribute, query);
+
+		System.out.println("Sending query to: "+url);
 
 		Map<String, String> args = ModelUtils.buildArgMap(manager);
 
 		JSONObject results;
 		try {
-			results = HttpUtils.postJSON(manager.getNetworkURL(nodeType, attribute, query), args, manager);
+			results = HttpUtils.postJSON(url, args, manager);
 		} catch (ConnectionException e) {
 			e.printStackTrace();
 			monitor.showMessage(Level.ERROR, "Network error: " + e.getMessage());

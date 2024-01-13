@@ -94,6 +94,9 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 
 	private CyNetwork newNetwork = null;
 	private boolean ignore = false;
+
+	// Properties
+	private String nodeType = "Protein";
  	private CyProperty<Properties> sessionProperties;
   private CyProperty<Properties> configProps;
 	private Map<String, ?> node_types;
@@ -120,8 +123,31 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 
 		// Get the node, edge, and filter information
 		getTypes();
+
+		// Get our properties
+		configProps = ModelUtils.getPropertyService(this, SavePolicy.CONFIG_DIR);
+
+		// Get a session property file for the current session
+    sessionProperties = ModelUtils.getPropertyService(this, SavePolicy.SESSION_FILE);
 	}
 
+	public void updateProperties() {
+		if (ModelUtils.hasProperty(configProps, "SearchType")) {
+			nodeType = ModelUtils.getStringProperty(configProps, "SearchType");
+		}
+		for (String node_type: node_types.keySet()) {
+			if (ModelUtils.hasProperty(configProps, node_type)) {
+				Boolean selected = ModelUtils.getBooleanProperty(configProps, node_type);
+				setNodeSkip(node_type, !selected);
+			}
+		}
+		for (String edge_type: edge_types.keySet()) {
+			if (ModelUtils.hasProperty(configProps, edge_type)) {
+				Boolean selected = ModelUtils.getBooleanProperty(configProps, edge_type);
+				setEdgeSkip(edge_type, !selected);
+			}
+		}
+	}
 
 	public String adaptNetworkName(String name) {
     CyNetworkManager netMgr = registrar.getService(CyNetworkManager.class);
@@ -275,7 +301,8 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 	}
 
 	public String getNetworkURL(String nodeType, String attribute, String query) {
-    return SPOKE_URL+"/"+APIVERSION+"/neighborhood/"+nodeType+"/"+attribute+"/"+query;
+		String equery = query.replace(" ", "%20");
+		return SPOKE_URL+APIVERSION+"/neighborhood/"+nodeType+"/"+attribute+"/"+equery;
   }
 
 	public String getExpandURL(String nodeType, String node_id) {
@@ -417,6 +444,8 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 
 					limits = createLimits();
 
+					updateProperties();
+
 					registerSearchFactories();
 
 				} catch (ConnectionException e) {
@@ -457,6 +486,15 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 
 	public Map<String, Cutoff> getLimits() {
 		return limits;
+	}
+
+	public String getDefaultType() {
+		return nodeType;
+	}
+
+	public void setDefaultType(String type) {
+		nodeType = type;
+		ModelUtils.setStringProperty(configProps, "SearchType", type);
 	}
 
 	public List<String> getNodeTypes() {
@@ -532,6 +570,7 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 	public void setEdgeSkip(String type, boolean skip) {
 		Map<String, Object> tMap = getTypeMap(edge_types, type);
 		tMap.put("skip", skip);
+		ModelUtils.setStringProperty(configProps, type, !skip);
 	}
 
 	public Boolean getNodeSkip(String type) {
@@ -544,6 +583,7 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 	public void setNodeSkip(String type, boolean skip) {
 		Map<String, Object> tMap = getTypeMap(node_types, type);
 		tMap.put("skip", skip);
+		ModelUtils.setStringProperty(configProps, type, !skip);
 	}
 
 	public Color getNodeFillColor(String type) {
@@ -577,7 +617,10 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 	}
 
 	public List<String> getSearchResults(String nodeType, String query) {
-		String URI = SPOKE_URL+APIVERSION+"/"+SEARCH+"/"+nodeType+"/"+query;
+		String equery = query.replace(" ","%20");
+
+		String URI = SPOKE_URL+APIVERSION+"/"+SEARCH+"/"+nodeType+"/"+equery;
+
 		JSONArray options = null;
 		Map<String, String> args = new HashMap<>();
 

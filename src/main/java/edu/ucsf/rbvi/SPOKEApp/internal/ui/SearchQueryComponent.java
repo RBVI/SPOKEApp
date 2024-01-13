@@ -79,6 +79,9 @@ public class SearchQueryComponent extends JPanel implements ActionListener {
 		Collections.sort(nodeTypes);
 		String[] nTypes = nodeTypes.toArray(new String[0]);
 		nodeTypeComboBox = new JComboBox(nTypes);
+		String defaultType = manager.getDefaultType();
+		nodeTypeComboBox.setSelectedItem(defaultType);
+
 		nodeTypeComboBox.setFont(smallFont);
 
 		queryField = new JTextField(16);
@@ -128,6 +131,9 @@ public class SearchQueryComponent extends JPanel implements ActionListener {
 
 		// Get the type
 		String nodeType = nodeTypeComboBox.getSelectedItem().toString();
+
+		// Set our property
+		manager.setDefaultType(nodeType);
 
 		// Send it off to the be searched
 		List<String> possibleMatches = manager.getSearchResults(nodeType, queryText+"*");

@@ -210,7 +210,14 @@ public class ModelUtils {
 			nodeNameMap.put(id.toString(), name);
 		}
 
-		getJSON(manager, network, nodeMap, nodeNameMap, null, results);
+		// Initialize our edge list to avoid duplicate edges
+		Set<Long> currentEdges = new HashSet<>();
+		for (CyEdge edge: network.getEdgeList()) {
+			if (network.getDefaultEdgeTable().getRow(edge.getSUID()).isSet(ID))
+				currentEdges.add(network.getDefaultEdgeTable().getRow(edge.getSUID()).get(ID, Long.class));
+		}
+
+		getJSON(manager, network, nodeMap, nodeNameMap, currentEdges, results);
 
 	}
 
@@ -263,7 +270,7 @@ public class ModelUtils {
 	
 	private static List<CyNode> getJSON(SpokeManager manager, CyNetwork network,
 			Map<String, CyNode> nodeMap, Map<String, String> nodeNameMap,
-			List<CyEdge> newEdges, JSONArray json) {
+			Set<Long> currentEdges, JSONArray json) {
 
 		List<CyNode> newNodes = new ArrayList<>();
 		createColumnIfNeeded(network.getDefaultNodeTable(), Long.class, ID);
@@ -276,6 +283,7 @@ public class ModelUtils {
 		createListColumnIfNeeded(network.getDefaultNodeTable(), String.class, XREFS);
 
 		// Edge columns
+		createColumnIfNeeded(network.getDefaultEdgeTable(), Long.class, ID);
 		createListColumnIfNeeded(network.getDefaultEdgeTable(), String.class, SOURCES);
 		createColumnIfNeeded(network.getDefaultEdgeTable(), String.class, TYPE);
 
@@ -315,7 +323,7 @@ public class ModelUtils {
 		
 		if (edges.size() > 0) {
 			for (JSONObject edgeObj : edges) {
-				createEdge(network, (JSONObject) edgeObj, nodeMap, nodeNameMap, newEdges);
+				createEdge(network, (JSONObject) edgeObj, nodeMap, nodeNameMap, currentEdges);
 			}
 		}
 		return newNodes;
@@ -604,9 +612,13 @@ public class ModelUtils {
 	}
 
 	private static void createEdge(CyNetwork network, JSONObject edgeObj,
-			Map<String, CyNode> nodeMap, Map<String, String> nodeNameMap, List<CyEdge> newEdges) {
+			Map<String, CyNode> nodeMap, Map<String, String> nodeNameMap, Set<Long> currentEdges) {
 		String source = edgeObj.get("source").toString();
 		String target = edgeObj.get("target").toString();
+		Long id = (Long)edgeObj.get("id");
+		if (currentEdges != null && currentEdges.contains(id))
+			return;
+
 		CyNode sourceNode = nodeMap.get(source);
 		CyNode targetNode = nodeMap.get(target);
 		String interaction = (String) edgeObj.get("neo4j_type");
@@ -619,16 +631,18 @@ public class ModelUtils {
 		row.set(CyNetwork.NAME,
 				nodeNameMap.get(source) + " (" + interaction + ") " + nodeNameMap.get(target));
 		row.set(CyEdge.INTERACTION, interaction);
+		row.set(ID, id);
 
-		if (newEdges != null)
-			newEdges.add(edge);
+		if (currentEdges != null)
+			currentEdges.add(id);
 
 		JSONObject properties = (JSONObject)edgeObj.get("properties");
 
 		for (Object objKey : properties.keySet()) {
 			String key = (String) objKey;
-			if (key.equals("source") || key.equals("sources")) {
+			if (key.equalsIgnoreCase("source") || key.equalsIgnoreCase("sources")) {
 				row.set(SOURCES, makeList(properties.get(objKey)));
+				return;
 			}
 
 			try {
