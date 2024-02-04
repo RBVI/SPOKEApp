@@ -42,10 +42,25 @@ public class DoubleCutoff extends Cutoff {
 			step = (max-min)/100.0;
 	}
 
-	public double getValue() { return value; }
+	public Double getValue() { return value; }
+	public void setValue(Object value) { setValue((Double)value); }
 	public void setValue(double value) { this.value = value; }
 
 	public double getMin() { return min; }
 	public double getMax() { return max; }
 	public double getStep() { return step; }
+
+	public void setState(JSONObject obj) {
+		super.setActive((Boolean)obj.get("active"));
+		setValue(obj.get(name));
+	}
+
+	public String getStringDefault() {
+		return String.valueOf(value);
+	}
+
+	public String getProperty() {
+		String json = "{"+super.quote(name)+": "+getStringDefault()+","+super.quote("active")+":"+super.isActive()+"}";
+		return json;
+	}
 }

@@ -49,6 +49,8 @@ import org.cytoscape.work.TaskIterator;
 import org.cytoscape.work.util.ListSingleSelection;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -81,12 +83,10 @@ public class ModelUtils {
 	public static String XREFS = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + "xrefs";
 
 	public static String CANONICAL = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + "canonical name";
-	public static String DISPLAY = "display name";
 	public static String FULLNAME = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + "full name";
 	public static String CV_STYLE = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + "chemViz Passthrough";
 	public static String ELABEL_STYLE = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + "enhancedLabel Passthrough";
 	public static String NAMESPACE = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + "namespace";
-	public static String QUERYTERM = "query term";
 	public static String SEQUENCE = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + "sequence";
 	public static String SMILES = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + "smiles";
 	public static String SPOKEID = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + "database identifier";
@@ -96,10 +96,6 @@ public class ModelUtils {
 	public String[] standardNodeColumns = {NAME, TYPE, IDENTIFIER, DESCRIPTION, SYNONYMS, SOURCES, XREFS};
 	public String[] standardEdgeColumns = {TYPE};
 
-	// Network information
-	public static String NET_URI = "uri";
-
-	
 	// Create network view size threshold
 	// See https://github.com/cytoscape/cytoscape-impl/blob/develop/core-task-impl/
 	// src/main/java/org/cytoscape/task/internal/loadnetwork/AbstractLoadNetworkTask.java
@@ -109,26 +105,7 @@ public class ModelUtils {
 	public static int MAX_NODES_STRUCTURE_DISPLAY = 300;
 	public static int MAX_NODE_PANELS = 25;
 	
-	public static boolean haveQueryTerms(CyNetwork network) {
-		if (network == null) return false;
-		for (CyNode node: network.getNodeList()) {
-			if (network.getRow(node).get(QUERYTERM, String.class) != null)
-				return true;
-		}
-		return false;
-	}
-
-	public static void selectQueryTerms(CyNetwork network) {
-		for (CyNode node: network.getNodeList()) {
-			if (network.getRow(node).get(QUERYTERM, String.class) != null)
-				network.getRow(node).set(CyNetwork.SELECTED, true);
-			else
-				network.getRow(node).set(CyNetwork.SELECTED, false);
-		}
-	}
-
-	public static String getErrorMessageFromJSON(SpokeManager manager,
-			JSONObject object) {
+	public static String getErrorMessageFromJSON(SpokeManager manager, JSONObject object) {
 		JSONObject errorMsg = getResultsFromJSON(object, JSONObject.class);
 		if (errorMsg.containsKey("Error")) {
 			System.out.println("An error occured while retrieving ppi enrichment: " + errorMsg.get("Error"));
@@ -140,10 +117,9 @@ public class ModelUtils {
 	}
 	
 	public static CyNetwork createNetworkFromJSON(SpokeNetwork spokeNetwork, 
-			JSONObject object, String netName) {
+			                                          JSONObject object, String netName, String url) {
 		spokeNetwork.getManager().ignoreAdd();
-		CyNetwork network = createNetworkFromJSON(spokeNetwork.getManager(), object,
-				netName);
+		CyNetwork network = createNetworkFromJSON(spokeNetwork.getManager(), object, netName, url);
 		if (network == null)
 			return null;
 		spokeNetwork.getManager().addSpokeNetwork(spokeNetwork, network);
@@ -151,8 +127,8 @@ public class ModelUtils {
 		return network;
 	}
 
-	public static CyNetwork createNetworkFromJSON(SpokeManager manager, 
-			JSONObject object, String netName) {
+	public static CyNetwork createNetworkFromJSON(SpokeManager manager, JSONObject object, 
+			                                          String netName, String url) {
 		JSONArray results = getResultsFromJSON(object, JSONArray.class);
 		if (results == null)
 			return null;
@@ -176,6 +152,8 @@ public class ModelUtils {
 
 		// Create the network
 		CyNetwork newNetwork = manager.createNetwork(defaultName, defaultNameRootNet);
+    createColumnIfNeeded(newNetwork.getDefaultNetworkTable(), String.class, QUERY);
+		newNetwork.getRow(newNetwork).set(QUERY, url);
 
 		// Create a map to save the nodes
 		Map<String, CyNode> nodeMap = new HashMap<>();
@@ -221,18 +199,6 @@ public class ModelUtils {
 
 	}
 
-	public static void setNetURI(CyNetwork network, String netURI) {
-    createColumnIfNeeded(network.getDefaultNetworkTable(), String.class, NET_URI);
-    network.getRow(network).set(NET_URI, netURI);
-  }
-
-  public static String getNetURI(CyNetwork network) {
-    if (network.getDefaultNetworkTable().getColumn(NET_URI) == null)
-      return null;
-    return network.getRow(network).get(NET_URI, String.class);
-  }
-
-	
 	public static List<CyColumn> getGroupColumns(CyNetwork network) {
 		Collection<CyColumn> colList = network.getDefaultNodeTable().getColumns();
 		colList.remove(network.getDefaultNodeTable().getColumn(CyNetwork.SELECTED));
@@ -417,7 +383,7 @@ public class ModelUtils {
 	public static boolean isSpokeNetwork(CyNetwork network) {
     // This is a string network only if we have a confidence score in the network table,
     // "@id" column in the node table, and a "score" column in the edge table
-    if (network == null || network.getRow(network).get(QUERY, Double.class) == null)
+    if (network == null || network.getRow(network).get(QUERY, String.class) == null)
       return false;
     return isMergedSpokeNetwork(network);
   }
@@ -465,50 +431,58 @@ public class ModelUtils {
 		CyNode newNode = network.addNode();
 		CyRow row = network.getRow(newNode);
 
+		if (type == null) {
+			type = (String) nodeObj.get("name"); // Metagraph?
+			name = (String) nodeObj.get("name"); // Metagraph?
+			row.set(CyNetwork.NAME, name);
+		}
+
 		// row.set(CyRootNetwork.SHARED_NAME, stringId);
 		row.set(TYPE, type);
 		row.set(ID, (Long)nodeObj.get("id"));
 
 		JSONObject properties = (JSONObject)nodeObj.get("properties");
 
-		for (Object objKey : properties.keySet()) {
-			String key = (String) objKey;
-			// Look for our "special" columns
-			if (key.equals("name")) {
-				name = (String)properties.get("name");
-				row.set(CyNetwork.NAME, name);
-			} else if (key.equals("identifier")) {
-				String identifier = properties.get("identifier").toString();
-				row.set(IDENTIFIER, identifier);
-			} else if (key.equals("description")) {
-				row.set(DESCRIPTION, (String) properties.get("description"));
-			} else if (key.equals("source") || key.equals("sources")) {
-				row.set(SOURCES, makeList(properties.get(objKey)));
-			} else if (key.equals("synonyms")) {
-				row.set(SYNONYMS, makeList(properties.get(objKey)));
-			} else if (key.equals("xrefs")) {
-				row.set(XREFS, makeList(properties.get(objKey)));
-			} else {
-				Object value = properties.get(key);
-				String columnName = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + key;
-				if (value instanceof JSONArray) {
-					if (((JSONArray)value).size() == 0)
-						continue;
-					Class listType = getListType((JSONArray)(properties.get(objKey)));
-					createListColumnIfNeeded(network.getDefaultNodeTable(), listType, columnName);
-					row.set(columnName, makeList(properties.get(objKey)));
-				} else if (value instanceof String) {
-					createColumnIfNeeded(network.getDefaultNodeTable(), String.class, columnName);
-					row.set(columnName, (String)properties.get(key));
-				} else if (value instanceof Boolean) {
-					createColumnIfNeeded(network.getDefaultNodeTable(), Boolean.class, columnName);
-					row.set(columnName, (Boolean)properties.get(key));
-				} else if (value instanceof Long) {
-					createColumnIfNeeded(network.getDefaultNodeTable(), Long.class, columnName);
-					row.set(columnName, (Long)properties.get(key));
-				} else if (value instanceof Double) {
-					createColumnIfNeeded(network.getDefaultNodeTable(), Double.class, columnName);
-					row.set(columnName, (Double)properties.get(key));
+		if (properties != null) {
+			for (Object objKey : properties.keySet()) {
+				String key = (String) objKey;
+				// Look for our "special" columns
+				if (key.equals("name")) {
+					name = (String)properties.get("name");
+					row.set(CyNetwork.NAME, name);
+				} else if (key.equals("identifier")) {
+					String identifier = properties.get("identifier").toString();
+					row.set(IDENTIFIER, identifier);
+				} else if (key.equals("description")) {
+					row.set(DESCRIPTION, (String) properties.get("description"));
+				} else if (key.equals("source") || key.equals("sources")) {
+					row.set(SOURCES, makeList(properties.get(objKey)));
+				} else if (key.equals("synonyms")) {
+					row.set(SYNONYMS, makeList(properties.get(objKey)));
+				} else if (key.equals("xrefs")) {
+					row.set(XREFS, makeList(properties.get(objKey)));
+				} else {
+					Object value = properties.get(key);
+					String columnName = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + key;
+					if (value instanceof JSONArray) {
+						if (((JSONArray)value).size() == 0)
+							continue;
+						Class listType = getListType((JSONArray)(properties.get(objKey)));
+						createListColumnIfNeeded(network.getDefaultNodeTable(), listType, columnName);
+						row.set(columnName, makeList(properties.get(objKey)));
+					} else if (value instanceof String) {
+						createColumnIfNeeded(network.getDefaultNodeTable(), String.class, columnName);
+						row.set(columnName, (String)properties.get(key));
+					} else if (value instanceof Boolean) {
+						createColumnIfNeeded(network.getDefaultNodeTable(), Boolean.class, columnName);
+						row.set(columnName, (Boolean)properties.get(key));
+					} else if (value instanceof Long) {
+						createColumnIfNeeded(network.getDefaultNodeTable(), Long.class, columnName);
+						row.set(columnName, (Long)properties.get(key));
+					} else if (value instanceof Double) {
+						createColumnIfNeeded(network.getDefaultNodeTable(), Double.class, columnName);
+						row.set(columnName, (Double)properties.get(key));
+					}
 				}
 			}
 		}
@@ -622,6 +596,9 @@ public class ModelUtils {
 		CyNode sourceNode = nodeMap.get(source);
 		CyNode targetNode = nodeMap.get(target);
 		String interaction = (String) edgeObj.get("neo4j_type");
+		if (interaction == null) {
+			interaction = (String) edgeObj.get("name"); // Metagraph?
+		}
 
 		CyEdge edge;
 
@@ -638,35 +615,37 @@ public class ModelUtils {
 
 		JSONObject properties = (JSONObject)edgeObj.get("properties");
 
-		for (Object objKey : properties.keySet()) {
-			String key = (String) objKey;
-			if (key.equalsIgnoreCase("source") || key.equalsIgnoreCase("sources")) {
-				row.set(SOURCES, makeList(properties.get(objKey)));
-				return;
-			}
-
-			try {
-				Object value = properties.get(key);
-				String columnName = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + key;
-				if (value instanceof JSONArray) {
-					Class listType = getListType((JSONArray)(properties.get(objKey)));
-					createListColumnIfNeeded(network.getDefaultEdgeTable(), listType, columnName);
-					row.set(columnName, makeList(properties.get(objKey),listType));
-				} else if (value instanceof String) {
-					createColumnIfNeeded(network.getDefaultEdgeTable(), String.class, columnName);
-					row.set(columnName, (String)properties.get(key));
-				} else if (value instanceof Boolean) {
-					createColumnIfNeeded(network.getDefaultEdgeTable(), Boolean.class, columnName);
-					row.set(columnName, (Boolean)properties.get(key));
-				} else if (value instanceof Long) {
-					createColumnIfNeeded(network.getDefaultEdgeTable(), Long.class, columnName);
-					row.set(columnName, (Long)properties.get(key));
-				} else if (value instanceof Double) {
-					createColumnIfNeeded(network.getDefaultEdgeTable(), Double.class, columnName);
-					row.set(columnName, (Double)properties.get(key));
+		if (properties != null) {
+			for (Object objKey : properties.keySet()) {
+				String key = (String) objKey;
+				if (key.equalsIgnoreCase("source") || key.equalsIgnoreCase("sources")) {
+					row.set(SOURCES, makeList(properties.get(objKey)));
+					return;
 				}
-			} catch (IllegalArgumentException e) {
-				throw new RuntimeException("Error saving value for "+key+" in edge "+row.get(CyNetwork.NAME, String.class)+": "+e.getMessage());
+
+				try {
+					Object value = properties.get(key);
+					String columnName = SPOKEDB_NAMESPACE + NAMESPACE_SEPARATOR + key;
+					if (value instanceof JSONArray) {
+						Class listType = getListType((JSONArray)(properties.get(objKey)));
+						createListColumnIfNeeded(network.getDefaultEdgeTable(), listType, columnName);
+						row.set(columnName, makeList(properties.get(objKey),listType));
+					} else if (value instanceof String) {
+						createColumnIfNeeded(network.getDefaultEdgeTable(), String.class, columnName);
+						row.set(columnName, (String)properties.get(key));
+					} else if (value instanceof Boolean) {
+						createColumnIfNeeded(network.getDefaultEdgeTable(), Boolean.class, columnName);
+						row.set(columnName, (Boolean)properties.get(key));
+					} else if (value instanceof Long) {
+						createColumnIfNeeded(network.getDefaultEdgeTable(), Long.class, columnName);
+						row.set(columnName, (Long)properties.get(key));
+					} else if (value instanceof Double) {
+						createColumnIfNeeded(network.getDefaultEdgeTable(), Double.class, columnName);
+						row.set(columnName, (Double)properties.get(key));
+					}
+				} catch (IllegalArgumentException e) {
+					throw new RuntimeException("Error saving value for "+key+" in edge "+row.get(CyNetwork.NAME, String.class)+": "+e.getMessage());
+				}
 			}
 		}
 	}
@@ -706,10 +685,6 @@ public class ModelUtils {
 	
 	public static String getName(CyNetwork network, CyIdentifiable ident) {
 		return getString(network, ident, CyNetwork.NAME);
-	}
-
-	public static String getDisplayName(CyNetwork network, CyIdentifiable ident) {
-		return getString(network, ident, DISPLAY);
 	}
 
 	public static String getString(CyNetwork network, CyIdentifiable ident, String column) {
@@ -778,6 +753,21 @@ public class ModelUtils {
 			return true;
 		return false;
 	}
+
+	public static JSONObject getJSONProperty(CyProperty<Properties> properties, String propertyKey) {
+		JSONParser jsonParser = new JSONParser();
+		Properties p = properties.getProperties();
+		if (p.getProperty(propertyKey) != null) {
+			String json = p.getProperty(propertyKey);
+			try {
+				JSONObject obj = (JSONObject)jsonParser.parse(json);
+				return obj;
+			} catch (ParseException pe) {
+			}
+		}
+		return null;
+	}
+
 	public static String getStringProperty(CyProperty<Properties> properties, String propertyKey) {
 		Properties p = properties.getProperties();
 		if (p.getProperty(propertyKey) != null) 
@@ -816,6 +806,14 @@ public class ModelUtils {
 		if (string == null || string.length() == 0) return new ArrayList<String>();
 		String [] arr = string.split(",");
 		return Arrays.asList(arr);
+	}
+
+	public static List<String> jsonToList(JSONArray array) {
+		List<String> list = new ArrayList<>();
+		for (Object o: array) {
+			list.add((String)o);
+		}
+		return list;
 	}
 
 	public static CyProperty<Properties> getPropertyService(SpokeManager manager,
@@ -876,7 +874,7 @@ public class ModelUtils {
 				continue;
 			if (from.getClass().equals(CyNode.class) && col.getName().equals(CyRootNetwork.SHARED_NAME)) 
 				continue;
-			if (col.getName().equals(ModelUtils.QUERYTERM) || col.getName().equals(ModelUtils.DISPLAY) || col.getName().equals(CyNetwork.NAME)) {
+			if (col.getName().equals(CyNetwork.NAME)) {
 				Object v = fromTable.getRow(from.getSUID()).getRaw(col.getName());
 				toTable.getRow(to.getSUID()).set(col.getName() + ".copy", v);
 				continue;
@@ -937,7 +935,7 @@ public class ModelUtils {
 					toTable.createColumn(fqn, col.getType(), col.isImmutable(), col.getDefaultValue());
 					columns.add(fqn);
 				}
-			} else if (fqn.equals(ModelUtils.QUERYTERM) || fqn.equals(ModelUtils.DISPLAY) || fqn.equals(CyNetwork.NAME)) {
+			} else if (fqn.equals(CyNetwork.NAME)) {
 				toTable.createColumn(fqn + ".copy", col.getType(), col.isImmutable(), col.getDefaultValue());
 				columns.add(fqn + ".copy");
 			}

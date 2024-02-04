@@ -3,7 +3,7 @@ package edu.ucsf.rbvi.spokeApp.internal.model;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-public class Cutoff {
+public abstract class Cutoff {
 	public enum CUTOFF_TYPE {
 		CHOICE, FLOAT, NONE
 	}
@@ -36,6 +36,28 @@ public class Cutoff {
 	public String getDescription() { return description; }
 	public boolean isActive() { return active; }
 	public void setActive(boolean active) { this.active = active; }
+
+	public String quote(String q) { return "\""+q+"\""; }
+	public String getStringType() {
+		switch(type) {
+			case CHOICE:
+				return "choice";
+			case FLOAT:
+				return "float";
+		}
+		return "none";
+	}
+	public String getStringActive() { 
+		if (active) 
+			return "true";
+		else
+			return "false";
+	}
+
+	public abstract void setValue(Object value);
+	public abstract Object getValue();
+	public abstract void setState(JSONObject json);
+	public abstract String getProperty();
 
 	public static CUTOFF_TYPE parseType(JSONObject cutoff) {
 		String stringType = (String)cutoff.get("type");

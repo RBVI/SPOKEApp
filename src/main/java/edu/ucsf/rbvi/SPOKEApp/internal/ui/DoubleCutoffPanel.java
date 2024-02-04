@@ -52,22 +52,26 @@ public class DoubleCutoffPanel extends JPanel implements ActionListener, ChangeL
 		box.addActionListener(this);
 		add(box, c.anchor("west"));
 
-		SpinnerModel model = new SpinnerNumberModel(cutoff.getValue(), cutoff.getMin(), cutoff.getMax(), cutoff.getStep());
+		SpinnerModel model = new SpinnerNumberModel(cutoff.getValue().doubleValue(), cutoff.getMin(), cutoff.getMax(), cutoff.getStep());
 		JSpinner spinner = new JSpinner(model);
 		spinner.addChangeListener(this);
 		add(spinner, c.right().insets(0,20,0,0).expandHoriz());
 	}
 
+	// TODO: need to save as property
 	public void actionPerformed(ActionEvent e) {
 		JCheckBox box = (JCheckBox)e.getSource();
 		cutoff.setActive(box.isSelected());
+		manager.updateCutoffProperty(cutoff);
 	}
 
+	// TODO: need to save as property
 	public void stateChanged(ChangeEvent e) {
 		JSpinner spinner = (JSpinner)e.getSource();
 		SpinnerNumberModel model = (SpinnerNumberModel)spinner.getModel();
 		Number v = model.getNumber();
 		cutoff.setValue(v.doubleValue());
+		manager.updateCutoffProperty(cutoff);
 	}
 
 }

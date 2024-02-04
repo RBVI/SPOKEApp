@@ -68,6 +68,7 @@ public class ChoiceCutoffPanel extends JPanel implements ActionListener {
 		}
 	}
 
+	// TODO: need to save as property
 	public void actionPerformed(ActionEvent e) {
 		if (e.getSource() instanceof JComboBox) {
 			JComboBox cb = (JComboBox) e.getSource();
@@ -79,6 +80,7 @@ public class ChoiceCutoffPanel extends JPanel implements ActionListener {
 			JCheckBox cb = (JCheckBox) e.getSource();
 			cutoff.setActive(cb.isSelected());
 		}
+		manager.updateCutoffProperty(cutoff);
 	}
 
 }

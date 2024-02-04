@@ -47,6 +47,25 @@ public class ChoiceCutoff extends Cutoff {
 		return values;
 	}
 
+	public void setValue(Object list) {
+		List<String> value;
+		if (list instanceof List)
+			value = (List<String>)list;
+		else
+			return;
+
+		for (String v: value) select(v, true);
+	}
+
+	public Object getValue() {
+		List<String> values = new ArrayList<>();
+		for (String v: selected.keySet()) {
+			if (selected.get(v))
+				values.add(v);
+		}
+		return values;
+	}
+
 	public List<String> getRange() { return range; }
 
 	public boolean isSelected(String key) {
@@ -56,4 +75,24 @@ public class ChoiceCutoff extends Cutoff {
 	public void select(String key, boolean sel) {
 		selected.put(key, sel);
 	}
+
+	public void setState(JSONObject obj) {
+		super.setActive((Boolean)obj.get("active"));
+		setValue(ModelUtils.jsonToList((JSONArray)obj.get(name)));
+	}
+
+	public String getStringDefault() {
+		String list = "[";
+		for (String r: selected.keySet()) {
+			if (selected.get(r))
+				list += super.quote(r)+",";
+		}
+		return list.substring(0,list.length()-1)+"]";
+	}
+
+	public String getProperty() {
+		String json = "{"+super.quote(name)+": "+getStringDefault()+","+super.quote("active")+":"+super.isActive()+"}";
+		return json;
+	}
+
 }

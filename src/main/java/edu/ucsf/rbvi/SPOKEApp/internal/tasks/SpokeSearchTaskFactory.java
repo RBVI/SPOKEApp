@@ -76,7 +76,7 @@ public class SpokeSearchTaskFactory extends AbstractNetworkSearchTaskFactory imp
 		String query = queryComponent.getQuery();
 
 		// Parse out the components -- for now, just split on ":"
-		String[] parts = query.split(":");
+		String[] parts = query.split("\n");
 		if (parts.length != 3) {
 			System.out.println("Error -- need type, attribute, and query");
 			return null;

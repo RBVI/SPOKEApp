@@ -100,8 +100,6 @@ public class SearchQueryComponent extends JPanel implements ActionListener {
 	public String getQueryText() {
 		if (queryField == null) return null;
 		String terms = queryField.getText();
-		// terms = terms.replaceAll("(?m)^\\s*", "");
-		// terms = terms.replaceAll("(?m)\\s*$", "");
 
 		return terms;
 	}
@@ -109,7 +107,7 @@ public class SearchQueryComponent extends JPanel implements ActionListener {
 	public String getQuery() {
 		String t = (String)nodeTypeComboBox.getSelectedItem();
 		String q = queryField.getText();
-		return t+":name:"+q;
+		return t+"\nname\n"+q;
 	}
 
 	private void updateQueryTextField() {
@@ -139,7 +137,7 @@ public class SearchQueryComponent extends JPanel implements ActionListener {
 		List<String> possibleMatches = manager.getSearchResults(nodeType, queryText+"*");
 		if (possibleMatches.size() == 1) {
 			String match = possibleMatches.get(0);
-			String name = match.split("\t")[0];
+			String name = match.split("    ")[0];
 			queryField.setText(name);
 			fireQueryChanged();
 			return;
@@ -147,10 +145,13 @@ public class SearchQueryComponent extends JPanel implements ActionListener {
 
 		// Popup a list
 		JPopupMenu searchResults = new JPopupMenu("Choose");
+		int count = 0;
 		for (String match: possibleMatches) {
 			searchResults.add(new MyAction(match));
+			if (count++ > 100)
+				break;
 		}
-		searchResults.setPopupSize(12*64, 14*possibleMatches.size());
+		searchResults.setPopupSize(12*64, 16*count);
 		searchResults.setFont(smallFont);
 		searchResults.show(queryField, 0, 0);
 	}
@@ -163,7 +164,7 @@ public class SearchQueryComponent extends JPanel implements ActionListener {
 			this.text = text;
 		}
 		public void actionPerformed(ActionEvent e) {
-			String name = text.split("\t")[0];
+			String name = text.split("    ")[0];
 			queryField.setText(name);
 			fireQueryChanged();
 		}

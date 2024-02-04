@@ -34,20 +34,13 @@ import edu.ucsf.rbvi.spokeApp.internal.model.SpokeNetwork;
 import edu.ucsf.rbvi.spokeApp.internal.utils.ModelUtils;
 import edu.ucsf.rbvi.spokeApp.internal.utils.ViewUtils;
 
-public class LoadNeighborhood extends AbstractTask {
+public class Metagraph extends AbstractTask {
 	final SpokeNetwork spokeNet;
-	final String nodeType;
-	final String attribute;
-	final String query;
 	final String netName;
 
-	public LoadNeighborhood(final SpokeNetwork spokeNet, 
-													final String nodeType, final String attribute,
-													final String query, final String netName) {
+	public Metagraph(final SpokeNetwork spokeNet, 
+									 final String netName) {
 		this.spokeNet = spokeNet;
-		this.query = query;
-		this.nodeType = nodeType;
-		this.attribute = attribute;
 		this.netName = netName;
 	}
 
@@ -55,11 +48,11 @@ public class LoadNeighborhood extends AbstractTask {
 		// make sure the list of resolved IDs is unique
 		SpokeManager manager = spokeNet.getManager();
 
-		String url = manager.getNetworkURL(nodeType, attribute, query);
+		String url = manager.getMetagraphURL();
 
 		System.out.println("Sending query to: "+url);
 
-		Map<String, String> args = ModelUtils.buildArgMap(manager);
+		Map<String, String> args = new HashMap<>();
 
 		JSONObject results;
 		try {
@@ -74,7 +67,7 @@ public class LoadNeighborhood extends AbstractTask {
 		if (results == null || !results.containsKey(SpokeManager.RESULT))
 			return;
 		
-		CyNetwork network = ModelUtils.createNetworkFromJSON(spokeNet, results, query, url);
+		CyNetwork network = ModelUtils.createNetworkFromJSON(spokeNet, results, "Metagraph", url);
 
 		if (network == null) {
 			monitor.showMessage(TaskMonitor.Level.ERROR,"SPOKE returned no results");

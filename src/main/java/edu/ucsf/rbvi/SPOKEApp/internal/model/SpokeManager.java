@@ -49,10 +49,18 @@ import org.cytoscape.view.model.CyNetworkView;
 import org.cytoscape.view.model.CyNetworkViewFactory;
 import org.cytoscape.view.model.CyNetworkViewManager;
 import org.cytoscape.work.SynchronousTaskManager;
+import org.cytoscape.work.TaskFactory;
 import org.cytoscape.work.TaskIterator;
 import org.cytoscape.work.TaskManager;
 import org.cytoscape.work.TaskObserver;
 
+import static org.cytoscape.work.ServiceProperties.COMMAND;
+import static org.cytoscape.work.ServiceProperties.COMMAND_DESCRIPTION;
+import static org.cytoscape.work.ServiceProperties.COMMAND_EXAMPLE_JSON;
+import static org.cytoscape.work.ServiceProperties.COMMAND_LONG_DESCRIPTION;
+import static org.cytoscape.work.ServiceProperties.COMMAND_NAMESPACE;
+import static org.cytoscape.work.ServiceProperties.COMMAND_SUPPORTS_JSON;
+import static org.cytoscape.work.ServiceProperties.IN_MENU_BAR;
 import static org.cytoscape.work.ServiceProperties.NODE_ADD_MENU;
 import static org.cytoscape.work.ServiceProperties.PREFERRED_MENU;
 import static org.cytoscape.work.ServiceProperties.TITLE;
@@ -64,6 +72,8 @@ import org.json.simple.JSONObject;
 import edu.ucsf.rbvi.spokeApp.internal.io.HttpUtils;
 
 import edu.ucsf.rbvi.spokeApp.internal.tasks.ExpandNodeTaskFactory;
+import edu.ucsf.rbvi.spokeApp.internal.tasks.MetagraphTaskFactory;
+import edu.ucsf.rbvi.spokeApp.internal.tasks.NeighborhoodTaskFactory;
 import edu.ucsf.rbvi.spokeApp.internal.tasks.SpokeSearchTaskFactory;
 
 import edu.ucsf.rbvi.spokeApp.internal.utils.ModelUtils;
@@ -96,6 +106,7 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 	private boolean ignore = false;
 
 	// Properties
+	private String spoke_url = SPOKE_URL;
 	private String nodeType = "Protein";
  	private CyProperty<Properties> sessionProperties;
   private CyProperty<Properties> configProps;
@@ -132,19 +143,46 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 	}
 
 	public void updateProperties() {
+		if (ModelUtils.hasProperty(configProps, "URL")) {
+			spoke_url = ModelUtils.getStringProperty(configProps, "URL");
+		}
+
 		if (ModelUtils.hasProperty(configProps, "SearchType")) {
 			nodeType = ModelUtils.getStringProperty(configProps, "SearchType");
 		}
+
 		for (String node_type: node_types.keySet()) {
 			if (ModelUtils.hasProperty(configProps, node_type)) {
 				Boolean selected = ModelUtils.getBooleanProperty(configProps, node_type);
 				setNodeSkip(node_type, !selected);
 			}
 		}
+
 		for (String edge_type: edge_types.keySet()) {
 			if (ModelUtils.hasProperty(configProps, edge_type)) {
 				Boolean selected = ModelUtils.getBooleanProperty(configProps, edge_type);
 				setEdgeSkip(edge_type, !selected);
+			}
+		}
+
+		for (String node_cutoff: node_cutoffs.keySet()) {
+			if (ModelUtils.hasProperty(configProps, node_cutoff)) {
+				Cutoff cutoff = node_cutoffs.get(node_cutoff);
+				cutoff.setState(ModelUtils.getJSONProperty(configProps, node_cutoff));
+			}
+		}
+
+		for (String edge_cutoff: edge_cutoffs.keySet()) {
+			if (ModelUtils.hasProperty(configProps, edge_cutoff)) {
+				Cutoff cutoff = edge_cutoffs.get(edge_cutoff);
+				cutoff.setState(ModelUtils.getJSONProperty(configProps, edge_cutoff));
+			}
+		}
+
+		for (String limit: limits.keySet()) {
+			if (ModelUtils.hasProperty(configProps, limit)) {
+				Cutoff cutoff = limits.get(limit);
+				cutoff.setState(ModelUtils.getJSONProperty(configProps, limit));
 			}
 		}
 	}
@@ -192,12 +230,36 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 		}
 
 		{
+			// TODO: add command
 			Properties props = new Properties();
 			props.put(NODE_ADD_MENU, "SPOKE");
 			props.put(TITLE, "Expand node");
 			props.put(PREFERRED_MENU, "SPOKE");
 			ExpandNodeTaskFactory expand = new ExpandNodeTaskFactory(this);
 			registrar.registerService(expand, NodeViewTaskFactory.class, props);
+		}
+
+		{
+			Properties props = new Properties();
+			props.put(IN_MENU_BAR, true);
+			props.put(TITLE, "Get Metagraph");
+			props.put(PREFERRED_MENU, "Apps.SPOKE");
+      props.put(COMMAND, "metagraph");
+			props.put(COMMAND_DESCRIPTION, "Load the current SPOKE metagraph");
+			props.put(COMMAND_NAMESPACE, "spoke");
+			props.put(COMMAND_SUPPORTS_JSON, false);
+			MetagraphTaskFactory expand = new MetagraphTaskFactory(this, "Metagraph");
+			registrar.registerService(expand, TaskFactory.class, props);
+		}
+
+		{
+			Properties props = new Properties();
+      props.put(COMMAND, "neighborhood");
+			props.put(COMMAND_DESCRIPTION, "Load a SPOKE neighborhood graph");
+			props.put(COMMAND_NAMESPACE, "spoke");
+			props.put(COMMAND_SUPPORTS_JSON, false);
+			NeighborhoodTaskFactory neighborhood = new NeighborhoodTaskFactory(this);
+			registrar.registerService(neighborhood, TaskFactory.class, props);
 		}
 
 	}
@@ -300,13 +362,18 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 		return commandExecutorTaskFactory.createTaskIterator(namespace, command, args, observer);
 	}
 
+	public String getMetagraphURL() {
+		return spoke_url+APIVERSION+"/metagraph";
+	}
+
+
 	public String getNetworkURL(String nodeType, String attribute, String query) {
 		String equery = query.replace(" ", "%20");
-		return SPOKE_URL+APIVERSION+"/neighborhood/"+nodeType+"/"+attribute+"/"+equery;
+		return spoke_url+APIVERSION+"/neighborhood/"+nodeType+"/"+attribute+"/"+equery;
   }
 
 	public String getExpandURL(String nodeType, String node_id) {
-    return SPOKE_URL+"/"+APIVERSION+"/expand/"+nodeType+"/"+node_id;
+    return spoke_url+"/"+APIVERSION+"/expand/"+nodeType+"/"+node_id;
   }
 
 
@@ -433,7 +500,7 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 		Executors.newCachedThreadPool().execute(new Runnable() {
 			@Override
 			public void run() {
-				String URI = SPOKE_URL+APIVERSION+"/"+TYPES;
+				String URI = spoke_url+APIVERSION+"/"+TYPES;
 				JSONObject types = null;
 				try {
 					types = ModelUtils.getResultsFromJSON(HttpUtils.getJSON(URI, args, manager, 100000), JSONObject.class);
@@ -465,6 +532,10 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 
 	public List<Cutoff> getActiveNodeCutoffs() {
 		return getActiveCutoffs(node_cutoffs);
+	}
+
+	public void updateCutoffProperty(Cutoff cutoff) {
+		ModelUtils.setStringProperty(configProps, cutoff.getName(), cutoff.getProperty());
 	}
 
 	public List<Cutoff> getActiveEdgeCutoffs() {
@@ -619,7 +690,7 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 	public List<String> getSearchResults(String nodeType, String query) {
 		String equery = query.replace(" ","%20");
 
-		String URI = SPOKE_URL+APIVERSION+"/"+SEARCH+"/"+nodeType+"/"+equery;
+		String URI = spoke_url+APIVERSION+"/"+SEARCH+"/"+nodeType+"/"+equery;
 
 		JSONArray options = null;
 		Map<String, String> args = new HashMap<>();
@@ -632,7 +703,10 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 				String name = (String)res.get("name");
 				String id = (String)res.get("identifier");
 				String desc = (String)res.get("description");
-				result.add(name+"\t("+id+")\t"+desc);
+				if (desc == null)
+					result.add(name+"    ("+id+")");
+				else
+					result.add(name+"    ("+id+")    "+desc);
 			}
 			return result;
 		} catch (ConnectionException e) {
