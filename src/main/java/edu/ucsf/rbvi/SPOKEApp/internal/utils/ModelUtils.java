@@ -346,6 +346,10 @@ public class ModelUtils {
 		return name;
 	}
 
+	public static List<CyNode> getSelectedNodes(CyNetwork network) {
+		return CyTableUtil.getSelectedNodes(network);
+	}
+
 	public static void addNodeIDs(Map<String, String> args, Long id, CyNetwork network) {
 		String ids = null;
 		for (CyNode node: network.getNodeList()) {

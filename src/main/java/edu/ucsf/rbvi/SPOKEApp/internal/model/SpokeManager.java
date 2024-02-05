@@ -61,6 +61,7 @@ import static org.cytoscape.work.ServiceProperties.COMMAND_LONG_DESCRIPTION;
 import static org.cytoscape.work.ServiceProperties.COMMAND_NAMESPACE;
 import static org.cytoscape.work.ServiceProperties.COMMAND_SUPPORTS_JSON;
 import static org.cytoscape.work.ServiceProperties.IN_MENU_BAR;
+import static org.cytoscape.work.ServiceProperties.MENU_GRAVITY;
 import static org.cytoscape.work.ServiceProperties.NODE_ADD_MENU;
 import static org.cytoscape.work.ServiceProperties.PREFERRED_MENU;
 import static org.cytoscape.work.ServiceProperties.TITLE;
@@ -72,8 +73,10 @@ import org.json.simple.JSONObject;
 import edu.ucsf.rbvi.spokeApp.internal.io.HttpUtils;
 
 import edu.ucsf.rbvi.spokeApp.internal.tasks.ExpandNodeTaskFactory;
+import edu.ucsf.rbvi.spokeApp.internal.tasks.ExpandNodesTaskFactory;
 import edu.ucsf.rbvi.spokeApp.internal.tasks.MetagraphTaskFactory;
 import edu.ucsf.rbvi.spokeApp.internal.tasks.NeighborhoodTaskFactory;
+import edu.ucsf.rbvi.spokeApp.internal.tasks.ReloadTypesTaskFactory;
 import edu.ucsf.rbvi.spokeApp.internal.tasks.SpokeSearchTaskFactory;
 
 import edu.ucsf.rbvi.spokeApp.internal.utils.ModelUtils;
@@ -139,6 +142,19 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 		configProps = ModelUtils.getPropertyService(this, SavePolicy.CONFIG_DIR);
 
 		// Get a session property file for the current session
+		{
+			Properties props = new Properties();
+			props.put(IN_MENU_BAR, true);
+			props.put(TITLE, "Reload types data");
+			props.put(MENU_GRAVITY, "3.0");
+			props.put(PREFERRED_MENU, "Apps.SPOKE");
+      props.put(COMMAND, "reload");
+			props.put(COMMAND_DESCRIPTION, "Reload the types data");
+			props.put(COMMAND_NAMESPACE, "spoke");
+			props.put(COMMAND_SUPPORTS_JSON, false);
+			ReloadTypesTaskFactory expand = new ReloadTypesTaskFactory(this);
+			registrar.registerService(expand, TaskFactory.class, props);
+		}
     sessionProperties = ModelUtils.getPropertyService(this, SavePolicy.SESSION_FILE);
 	}
 
@@ -243,6 +259,7 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 			Properties props = new Properties();
 			props.put(IN_MENU_BAR, true);
 			props.put(TITLE, "Get Metagraph");
+			props.put(MENU_GRAVITY, "2.0");
 			props.put(PREFERRED_MENU, "Apps.SPOKE");
       props.put(COMMAND, "metagraph");
 			props.put(COMMAND_DESCRIPTION, "Load the current SPOKE metagraph");
@@ -260,6 +277,20 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 			props.put(COMMAND_SUPPORTS_JSON, false);
 			NeighborhoodTaskFactory neighborhood = new NeighborhoodTaskFactory(this);
 			registrar.registerService(neighborhood, TaskFactory.class, props);
+		}
+		
+		{
+			Properties props = new Properties();
+			props.put(IN_MENU_BAR, true);
+			props.put(MENU_GRAVITY, "1.0");
+			props.put(TITLE, "Expand Nodes");
+			props.put(PREFERRED_MENU, "Apps.SPOKE");
+      props.put(COMMAND, "expand");
+			props.put(COMMAND_DESCRIPTION, "Load a SPOKE neighborhood graph");
+			props.put(COMMAND_NAMESPACE, "spoke");
+			props.put(COMMAND_SUPPORTS_JSON, true);
+			ExpandNodesTaskFactory expandNodes = new ExpandNodesTaskFactory(this);
+			registrar.registerService(expandNodes, TaskFactory.class, props);
 		}
 
 	}

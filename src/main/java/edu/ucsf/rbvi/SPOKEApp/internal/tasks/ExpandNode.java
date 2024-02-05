@@ -79,8 +79,10 @@ public class ExpandNode extends AbstractTask {
 		int networkSize = network.getNodeList().size() + network.getEdgeList().size();
 		// System.out.println("Network size = "+networkSize+" viewThreshold = "+viewThreshold);
 		if (networkSize < viewThreshold) {
+			CyNetworkView networkView = ModelUtils.getNetworkView(manager, network);
 			// Now style the network
 			// TODO:  change style to accomodate STITCH
+			networkView.updateView();
 
 			// And lay it out
 			CyLayoutAlgorithm alg = manager.getService(CyLayoutAlgorithmManager.class).getLayout("force-directed");
@@ -89,7 +91,6 @@ public class ExpandNode extends AbstractTask {
 			Map<String, Object> layoutArgs = new HashMap<>();
 			layoutArgs.put("defaultNodeMass", 10.0);
 			setter.applyTunables(context, layoutArgs);
-			CyNetworkView networkView = ModelUtils.getNetworkView(manager, network);
 			Set<View<CyNode>> nodeViews = new HashSet<>(networkView.getNodeViews());
 			insertTasksAfterCurrentTask(alg.createTaskIterator(networkView, context, nodeViews, null));
 		} else {
