@@ -43,7 +43,7 @@ public class DoubleCutoff extends Cutoff {
 	}
 
 	public Double getValue() { return value; }
-	public void setValue(Object value) { setValue((Double)value); }
+	public void setValue(Object value) { this.value = ((Double)value).doubleValue(); }
 	public void setValue(double value) { this.value = value; }
 
 	public double getMin() { return min; }
