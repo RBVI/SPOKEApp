@@ -248,9 +248,9 @@ public class SpokeManager implements NetworkAddedListener, SessionLoadedListener
 		{
 			// TODO: add command
 			Properties props = new Properties();
-			props.put(NODE_ADD_MENU, "SPOKE");
+			props.put(NODE_ADD_MENU, true);
 			props.put(TITLE, "Expand node");
-			props.put(PREFERRED_MENU, "SPOKE");
+			props.put(PREFERRED_MENU, "Apps.SPOKE");
 			ExpandNodeTaskFactory expand = new ExpandNodeTaskFactory(this);
 			registrar.registerService(expand, NodeViewTaskFactory.class, props);
 		}

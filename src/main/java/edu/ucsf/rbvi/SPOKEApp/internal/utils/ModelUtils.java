@@ -144,11 +144,7 @@ public class ModelUtils {
 		if (netName != null && netName != "") {
 			defaultName = defaultName + " - " + netName;
 			defaultNameRootNet = defaultNameRootNet + " - " + netName;
-			//defaultNameRootNet = defaultNameRootNet + 
-		} /*else if (queryTermMap != null && queryTermMap.size() == 1 && queryTermMap.containsKey(ids)) {
-			defaultName = defaultName + " - " + queryTermMap.get(ids);
-			defaultNameRootNet = defaultNameRootNet + " - " + queryTermMap.get(ids);
-		} */
+		}
 
 		// Create the network
 		CyNetwork newNetwork = manager.createNetwork(defaultName, defaultNameRootNet);
@@ -162,6 +158,7 @@ public class ModelUtils {
 		Map<String, String> nodeNameMap = new HashMap<>();
 
 		getJSON(manager, newNetwork, nodeMap, nodeNameMap, null, results);
+		
 
 		manager.addNetwork(newNetwork);
 		return newNetwork;
@@ -195,7 +192,9 @@ public class ModelUtils {
 				currentEdges.add(network.getDefaultEdgeTable().getRow(edge.getSUID()).get(ID, Long.class));
 		}
 
-		getJSON(manager, network, nodeMap, nodeNameMap, currentEdges, results);
+		List<CyNode> newNodes = getJSON(manager, network, nodeMap, nodeNameMap, currentEdges, results);
+
+		// TODO: Create a group from newNodes (and the query node)
 
 	}
 
@@ -264,16 +263,11 @@ public class ModelUtils {
 				JSONObject element = (JSONObject)e;
 
 				JSONObject data = (JSONObject)element.get("data");
-				// String type = data.get("neo4j_type");
-				// String id = data.get("id"); // This is the internal NEO4J id
 
 				if (data.get("source") != null && data.get("target") != null) {
-					// JSONObject properties = data.get("properties");
 					edges.add(data);
 				} else {
 					nodes.add(data);
-					// JSONObject properties = data.get("properties");
-					// String identifier = properties.get("identifier");
 				}
 			}
 		}
@@ -286,7 +280,7 @@ public class ModelUtils {
 					newNodes.add(newNode);
 			}
 		}
-		
+
 		if (edges.size() > 0) {
 			for (JSONObject edgeObj : edges) {
 				createEdge(network, (JSONObject) edgeObj, nodeMap, nodeNameMap, currentEdges);
